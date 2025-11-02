@@ -1,0 +1,19 @@
+# PDF 处理
+PyMuPDF>=1.23.0
+
+# OCR 识别
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0
+
+# 图像处理
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Web 服务 (可选,如果使用 ocr_server.py)
+flask>=2.3.0
+
+# 进度条
+tqdm>=4.65.0
+
+# HTTP 请求 (可选,如果使用 API 模式)
+requests>=2.31.0
