@@ -1,61 +1,82 @@
 import fitz  # PyMuPDF
-import requests
-import base64
+from paddleocr import PaddleOCR
 import os
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import cv2
+import numpy as np
 
-# --- 1. 请在这里配置您的信息 ---
-
-# 您本地PaddleOCR服务的API地址
-PADDLE_OCR_API_URL = "http://127.0.0.1:8866/predict/paddleocr"
-
-# 输入的PDF文件路径 (需要进行OCR的PDF)
-# Windows路径示例: "C:\\Users\\YourUser\\Documents\\scan.pdf"
-# Mac/Linux路径示例: "/home/user/docs/scan.pdf"
+# --- 配置 ---
 INPUT_PDF_PATH = "input.pdf"
-
-# 输出的带文字的PDF文件路径
 OUTPUT_PDF_PATH = "output_searchable.pdf"
+DPI = 200
+MAX_WORKERS = 4  # OCR本身很占资源,建议2个线程
 
-# 渲染PDF页面的DPI（分辨率），300 DPI是印刷质量，对于OCR来说足够清晰
-# 如果识别效果不好，可以尝试提高到400
-DPI = 400
+# 初始化 PaddleOCR (第一次运行会自动下载模型)
+print("正在初始化 PaddleOCR (首次运行会下载模型,请稍候)...")
+ocr_engine = PaddleOCR(lang="ch")
+print("PaddleOCR 初始化完成!")
 
-# --- 2. 核心功能函数 ---
+# --- 核心函数 ---
 
-def call_paddle_ocr(image_bytes: bytes) -> list:
-    """调用PaddleOCR API并返回识别结果"""
+def call_paddle_ocr_direct(image_bytes: bytes) -> list:
+    """直接调用 PaddleOCR 进行识别"""
     try:
-        # 将图片字节流编码为Base64
-        base64_data = base64.b64encode(image_bytes).decode('utf-8')
+        # 将字节流转换为图片
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # 构建请求体
-        payload = {"images": [base64_data]}
+        # OCR识别 (新版本不需要 cls 参数)
+        result = ocr_engine.ocr(img)
         
-        # 发送POST请求
-        response = requests.post(PADDLE_OCR_API_URL, json=payload)
-        response.raise_for_status()  # 如果请求失败则抛出异常
+        # 格式化结果
+        formatted_results = []
+        if result and len(result) > 0 and result[0]:
+            for line in result[0]:
+                if line and len(line) >= 2:
+                    box = line[0]
+                    text_info = line[1]
+                    if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                        formatted_results.append({
+                            "box": box,
+                            "text": text_info[0],
+                            "confidence": text_info[1]
+                        })
         
-        result = response.json()
+        return formatted_results
         
-        # 检查API返回状态是否成功
-        if result.get("status") == "000" and "results" in result and result["results"]:
-            # PaddleHub返回的结果结构是 result['results'][0]['data']
-            return result["results"][0]["data"]
-        else:
-            print(f"API返回错误: {result.get('msg', '未知错误')}")
-            return []
-            
-    except requests.exceptions.RequestException as e:
-        print(f"调用OCR API时发生网络错误: {e}")
-        return []
     except Exception as e:
-        print(f"处理OCR响应时发生未知错误: {e}")
+        print(f"OCR识别错误: {e}")
         return []
+
+
+def process_page(doc_path: str, page_num: int, dpi: int) -> dict:
+    """处理单个页面"""
+    doc = fitz.open(doc_path)
+    page = doc.load_page(page_num)
+    
+    # 渲染页面
+    pix = page.get_pixmap(dpi=dpi)
+    img_bytes = pix.tobytes("png")
+    
+    # OCR识别
+    ocr_results = call_paddle_ocr_direct(img_bytes)
+    
+    result = {
+        'page_num': page_num,
+        'width': page.rect.width,
+        'height': page.rect.height,
+        'img_bytes': img_bytes,
+        'ocr_results': ocr_results
+    }
+    
+    doc.close()
+    return result
 
 
 def create_searchable_pdf(input_path: str, output_path: str):
-    """读取PDF，进行OCR，并创建可搜索的PDF"""
+    """创建可搜索的PDF"""
     
     if not os.path.exists(input_path):
         print(f"错误: 输入文件不存在 -> {input_path}")
@@ -63,63 +84,79 @@ def create_searchable_pdf(input_path: str, output_path: str):
 
     print(f"正在打开PDF文件: {input_path}")
     doc = fitz.open(input_path)
+    total_pages = len(doc)
+    doc.close()
     
-    # 创建一个新的空PDF用于输出
+    print(f"PDF共有 {total_pages} 页")
+    print(f"使用 {MAX_WORKERS} 个线程并发处理...")
+    print(f"DPI设置: {DPI}")
+    
+    page_results = [None] * total_pages
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {
+            executor.submit(process_page, input_path, page_num, DPI): page_num 
+            for page_num in range(total_pages)
+        }
+        
+        with tqdm(total=total_pages, desc="OCR处理进度", unit="页") as pbar:
+            for future in as_completed(futures):
+                page_num = futures[future]
+                try:
+                    result = future.result()
+                    page_results[page_num] = result
+                except Exception as e:
+                    print(f"\n页面 {page_num} 处理失败: {e}")
+                    page_results[page_num] = None
+                pbar.update(1)
+    
+    print("\n正在生成可搜索PDF...")
     out_pdf = fitz.open()
-
-    print("开始逐页进行OCR处理...")
-    # 使用tqdm创建进度条
-    for page_num in tqdm(range(len(doc)), desc="PDF处理进度"):
-        page = doc.load_page(page_num)
+    
+    for result in tqdm(page_results, desc="组装PDF", unit="页"):
+        if result is None:
+            continue
+            
+        new_page = out_pdf.new_page(width=result['width'], height=result['height'])
+        new_page.insert_image(
+            fitz.Rect(0, 0, result['width'], result['height']), 
+            stream=result['img_bytes']
+        )
         
-        # 1. 将PDF页面渲染成高分辨率图片
-        pix = page.get_pixmap(dpi=DPI)
-        img_bytes = pix.tobytes("png")
-        
-        # 2. 调用OCR服务
-        ocr_results = call_paddle_ocr(img_bytes)
-        
-        # 3. 创建新页面并添加图片和不可见的文字
-        new_page = out_pdf.new_page(width=page.rect.width, height=page.rect.height)
-        
-        # 将原始图片作为背景插入
-        new_page.insert_image(page.rect, stream=img_bytes)
-        
-        if ocr_results:
-            for item in ocr_results:
+        if result['ocr_results']:
+            for item in result['ocr_results']:
                 text = item.get("text", "")
-                box = item.get("box") #  box是四个点的坐标列表
+                box = item.get("box")
                 
-                # 计算一个简单的边界框
-                x_coords = [p[0] for p in box]
-                y_coords = [p[1] for p in box]
-                bbox = fitz.Rect(min(x_coords), min(y_coords), max(x_coords), max(y_coords))
-                
-                # 插入不可见的文字 (render_mode=3)
-                # 这使得文字可以被搜索和复制，但肉眼看不见
-                new_page.insert_textbox(
-                    bbox,
-                    text,
-                    fontsize=12,      # 字体大小不重要，因为它不可见
-                    fontname="helv",  # 使用一个标准字体
-                    render_mode=3   # 关键：设置文字渲染模式为不可见
-                )
+                if box and text:
+                    x_coords = [p[0] for p in box]
+                    y_coords = [p[1] for p in box]
+                    bbox = fitz.Rect(min(x_coords), min(y_coords), max(x_coords), max(y_coords))
+                    
+                    try:
+                        new_page.insert_textbox(
+                            bbox, text,
+                            fontsize=10,
+                            fontname="helv",
+                            render_mode=3
+                        )
+                    except:
+                        pass
 
-    print("OCR处理完成，正在保存新的PDF文件...")
-    try:
-        # 保存文件，使用优化选项减小文件大小
-        out_pdf.save(output_path, garbage=4, deflate=True, clean=True)
-        print(f"成功！可搜索的PDF已保存至: {output_path}")
-    except Exception as e:
-        print(f"保存PDF时发生错误: {e}")
-    finally:
-        doc.close()
-        out_pdf.close()
+    print("正在保存PDF文件...")
+    out_pdf.save(output_path, garbage=4, deflate=True, clean=True)
+    out_pdf.close()
+    print(f"\n✅ 成功！可搜索的PDF已保存至: {output_path}")
 
 
-# --- 3. 运行脚本 ---
 if __name__ == "__main__":
-    # 确保您的本地PaddleOCR服务已经启动！
-    print("--- 开始将PDF转换为可搜索PDF ---")
+    start_time = time.time()
+    print("=" * 60)
+    print("开始将PDF转换为可搜索PDF")
+    print("=" * 60)
+    
     create_searchable_pdf(INPUT_PDF_PATH, OUTPUT_PDF_PATH)
-    print("--- 任务结束 ---")
+    
+    elapsed = time.time() - start_time
+    print(f"\n总耗时: {elapsed/60:.1f} 分钟 ({elapsed:.1f} 秒)")
+    print("=" * 60)
