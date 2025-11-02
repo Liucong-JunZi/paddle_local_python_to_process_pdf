@@ -27,6 +27,10 @@ def call_paddle_ocr_direct(image_bytes: bytes) -> list:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
+        # 检查图片是否成功解码
+        if img is None:
+            return []
+        
         # OCR识别 (新版本不需要 cls 参数)
         result = ocr_engine.ocr(img)
         
@@ -34,20 +38,24 @@ def call_paddle_ocr_direct(image_bytes: bytes) -> list:
         formatted_results = []
         if result and len(result) > 0 and result[0]:
             for line in result[0]:
-                if line and len(line) >= 2:
-                    box = line[0]
-                    text_info = line[1]
-                    if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
-                        formatted_results.append({
-                            "box": box,
-                            "text": text_info[0],
-                            "confidence": text_info[1]
-                        })
+                try:
+                    if line and len(line) >= 2:
+                        box = line[0]
+                        text_info = line[1]
+                        if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                            formatted_results.append({
+                                "box": box,
+                                "text": text_info[0],
+                                "confidence": text_info[1]
+                            })
+                except Exception:
+                    # 忽略单个文本行的解析错误
+                    continue
         
         return formatted_results
         
     except Exception as e:
-        print(f"OCR识别错误: {e}")
+        # 不打印错误,只是返回空结果继续处理
         return []
 
 
