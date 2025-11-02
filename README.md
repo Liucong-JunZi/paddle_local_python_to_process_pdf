@@ -88,6 +88,82 @@ result = response.json()
 print(result)
 ```
 
+### 方式3: 使用 OpenAI 兼容的 API (推荐用于集成)
+
+启动 OpenAI 兼容服务:
+```bash
+python ocr_openai_api.py
+```
+
+服务地址: `http://127.0.0.1:8866`
+
+#### 3.1 使用 OpenAI SDK
+
+```python
+from openai import OpenAI
+import base64
+
+# 创建客户端
+client = OpenAI(
+    api_key="dummy-key",  # 当前版本不需要真实 key
+    base_url="http://127.0.0.1:8866/v1"
+)
+
+# 读取图片
+with open("image.png", "rb") as f:
+    image_data = base64.b64encode(f.read()).decode('utf-8')
+
+# 调用 OCR
+response = client.chat.completions.create(
+    model="paddleocr-v5",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "请识别图片中的文字"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_data}"
+                    }
+                }
+            ]
+        }
+    ]
+)
+
+print(response.choices[0].message.content)
+```
+
+#### 3.2 使用简化的 OCR 接口
+
+```python
+import requests
+import base64
+
+with open("image.png", "rb") as f:
+    img_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+response = requests.post(
+    "http://127.0.0.1:8866/v1/ocr",
+    json={"image": img_base64}
+)
+
+result = response.json()
+for item in result['results']:
+    print(f"{item['text']} (置信度: {item['confidence']:.2f})")
+```
+
+#### 3.3 可用端点
+
+- `GET /v1/models` - 列出可用模型
+- `POST /v1/chat/completions` - OpenAI 兼容的聊天接口
+- `POST /v1/ocr` - 简化的 OCR 接口
+- `GET /health` - 健康检查
+
 ## 性能参数调优
 
 ### 速度优化
@@ -137,12 +213,14 @@ print(result)
 
 ```
 .
-├── paddle_ocr.py       # 主处理脚本
-├── ocr_server.py       # OCR 服务端
-├── requirements.txt    # Python 依赖
-├── README.md           # 项目说明
-├── input.pdf           # 输入文件 (需要自行准备)
-└── output_searchable.pdf  # 输出文件 (运行后生成)
+├── paddle_ocr.py           # 主处理脚本 (PDF批量处理)
+├── ocr_server.py           # PaddleHub 格式的 OCR 服务
+├── ocr_openai_api.py       # OpenAI 兼容的 OCR 服务 (推荐)
+├── test_openai_api.py      # OpenAI API 测试脚本
+├── requirements.txt        # Python 依赖
+├── README.md               # 项目说明
+├── input.pdf               # 输入文件 (需要自行准备)
+└── output_searchable.pdf   # 输出文件 (运行后生成)
 ```
 
 ## 常见问题
