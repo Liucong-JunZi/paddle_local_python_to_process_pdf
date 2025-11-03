@@ -38,72 +38,6 @@ def get_model(model_id):
         return jsonify(MODELS[model_id])
     return jsonify({"error": "Model not found"}), 404
 
-def deduplicate_ocr_results(results, threshold=0.8):
-    """
-    去重 OCR 结果
-    - 移除完全相同的文本
-    - 移除高度相似的文本(可选)
-    """
-    if not results:
-        return results
-    
-    deduplicated = []
-    seen_texts = set()
-    
-    for item in results:
-        text = item['text']
-        
-        # 跳过完全相同的文本
-        if text in seen_texts:
-            continue
-        
-        # 跳过空文本
-        if not text or not text.strip():
-            continue
-        
-        seen_texts.add(text)
-        deduplicated.append(item)
-    
-    return deduplicated
-
-
-def preprocess_image(img):
-    """对输入图片进行预处理以提高 OCR 识别率。
-
-    处理步骤：
-    - 转为灰度
-    - 去噪（非局部均值去噪）
-    - 自适应直方图均衡（CLAHE）提升对比度
-    - 自适应阈值二值化
-    - 形态学开运算去小噪点
-
-    返回处理后的 BGR 图片（如果处理失败则返回原图）。
-    """
-    try:
-        # 灰度
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        # 去噪
-        denoised = cv2.fastNlMeansDenoising(gray, None, h=10)
-
-        # CLAHE 提升对比度
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(denoised)
-
-        # 自适应阈值二值化
-        th = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv2.THRESH_BINARY, 25, 10)
-
-        # 形态学开运算去除小噪点
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        opened = cv2.morphologyEx(th, cv2.MORPH_OPEN, kernel, iterations=1)
-
-        # 将单通道转回三通道 BGR 返回（PaddleOCR 接受彩色或灰度，但保持一致）
-        processed = cv2.cvtColor(opened, cv2.COLOR_GRAY2BGR)
-        return processed
-    except Exception as e:
-        print(f"[DEBUG] 预处理失败,使用原图: {e}")
-        return img
 
 
 @app.route('/v1/chat/completions', methods=['POST'])
@@ -173,67 +107,105 @@ def chat_completions():
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
                 if img is not None:
-                    # 先做图片预处理以提升 OCR 效果
-                    img_proc = preprocess_image(img)
                     # OCR识别
-                    result = ocr.ocr(img_proc)
+                    result = ocr.ocr(img)
                     
-                    # 格式化结果
-                    if result and len(result) > 0:
-                        ocr_result = result[0]
+                    print(f"[DEBUG] OCR原始结果类型: {type(result)}")
+                    
+                    # 格式化结果 - 处理多种返回格式
+                    if result:
+                        ocr_result = result[0] if isinstance(result, list) and len(result) > 0 else result
                         
-                        # 新版 PaddleOCR 返回的是字典对象
-                        try:
-                            if isinstance(ocr_result, dict) or hasattr(ocr_result, '__getitem__'):
-                                rec_texts = ocr_result['rec_texts'] if 'rec_texts' in ocr_result else None
-                                rec_scores = ocr_result['rec_scores'] if 'rec_scores' in ocr_result else None
-                            else:
-                                rec_texts = getattr(ocr_result, 'rec_texts', None)
-                                rec_scores = getattr(ocr_result, 'rec_scores', None)
+                        print(f"[DEBUG] OCR result[0] 类型: {type(ocr_result)}")
+                        
+                        # 方式1: 字典格式 (新版PaddleOCR)
+                        if isinstance(ocr_result, dict):
+                            print(f"[DEBUG] 字典格式，键: {ocr_result.keys()}")
                             
-                            if rec_texts and rec_scores:
-                                # 去重处理 - 移除连续重复的文本
+                            if 'rec_texts' in ocr_result and 'rec_scores' in ocr_result:
+                                rec_texts = ocr_result['rec_texts']
+                                rec_scores = ocr_result['rec_scores']
+                                
+                                print(f"[DEBUG] 找到 rec_texts，数量: {len(rec_texts)}")
+                                
                                 prev_text = None
                                 for text, score in zip(rec_texts, rec_scores):
-                                    # 跳过与前一行完全相同的文本
-                                    if text != prev_text:
+                                    if text and text != prev_text:  # 去重
                                         ocr_results.append({
                                             "text": text,
                                             "confidence": float(score)
                                         })
                                         prev_text = text
-                        except Exception as e:
-                            print(f"[DEBUG] OCR 解析错误: {e}")
+                        
+                        # 方式2: 对象属性格式
+                        elif hasattr(ocr_result, 'rec_texts') and hasattr(ocr_result, 'rec_scores'):
+                            rec_texts = ocr_result.rec_texts
+                            rec_scores = ocr_result.rec_scores
+                            
+                            print(f"[DEBUG] 对象属性格式 - 文本数: {len(rec_texts)}")
+                            
+                            prev_text = None
+                            for text, score in zip(rec_texts, rec_scores):
+                                if text and text != prev_text:  # 去重
+                                    ocr_results.append({
+                                        "text": text,
+                                        "confidence": float(score)
+                                    })
+                                    prev_text = text
+                        
+                        # 方式3: 标准列表格式 [[[box], (text, score)], ...]
+                        elif isinstance(ocr_result, list):
+                            print(f"[DEBUG] 列表格式 - 行数: {len(ocr_result)}")
+                            
+                            prev_text = None
+                            for line in ocr_result:
+                                if line and len(line) >= 2:
+                                    text_info = line[1]
+                                    if isinstance(text_info, (tuple, list)) and len(text_info) >= 2:
+                                        text = text_info[0]
+                                        score = text_info[1]
+                                        
+                                        if text and text != prev_text:  # 去重
+                                            ocr_results.append({
+                                                "text": text,
+                                                "confidence": float(score)
+                                            })
+                                            prev_text = text
+                    
+                    print(f"[DEBUG] 最终OCR结果数: {len(ocr_results)}")
             except Exception as e:
                 print(f"[DEBUG] 图片处理错误: {e}")
         
-        # 去重处理
-        ocr_results = deduplicate_ocr_results(ocr_results)
+        print(f"[DEBUG] 准备返回 - OCR结果数: {len(ocr_results)}, 输入文本: {input_text is not None}")
         
-        # 构建响应内容
-        response_data = {
-            "input_text": input_text if input_text else None,
-            "ocr_results": ocr_results if ocr_results else []
-        }
-        
-        # 格式化为文本输出
+        # 直接返回纯文本，不要任何Markdown或特殊格式
         content_lines = []
         
-        if input_text:
-            content_lines.append("【输入文本】")
-            content_lines.append(input_text)
-            content_lines.append("")
-        
+        # 方式1：只返回识别的文本（推荐，最简洁）
         if ocr_results:
-            content_lines.append("【OCR识别结果】")
-            for idx, item in enumerate(ocr_results, 1):
-                content_lines.append(f"{idx}. {item['text']} (置信度: {item['confidence']:.2f})")
-        elif not input_text:
-            content_lines.append("未识别到文字,也未提供输入文本")
+            # 直接输出每行文本，不带序号和置信度
+            for item in ocr_results:
+                content_lines.append(item['text'])
         
-        recognized_text = "\n".join(content_lines) if content_lines else "无内容"
+        # 如果有输入文本但没有OCR结果
+        if input_text and not ocr_results:
+            content_lines.append(input_text)
         
-        # 返回 OpenAI 格式的响应
+        # 如果什么都没有
+        if not content_lines:
+            content_lines.append("未识别到文字")
+        
+        recognized_text = "\n".join(content_lines)
+        
+        print(f"[DEBUG] 最终文本长度: {len(recognized_text)} 字符")
+        print(f"[DEBUG] 文本行数: {len(content_lines)}")
+        if len(recognized_text) > 200:
+            print(f"[DEBUG] 文本前100字符: {recognized_text[:100]}")
+            print(f"[DEBUG] 文本后100字符: {recognized_text[-100:]}")
+        else:
+            print(f"[DEBUG] 完整文本: {recognized_text}")
+        
+        # 返回标准 OpenAI 格式的响应
         response = {
             "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
             "object": "chat.completion",
@@ -244,8 +216,7 @@ def chat_completions():
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": recognized_text,
-                        "metadata": response_data  # 结构化数据
+                        "content": recognized_text
                     },
                     "finish_reason": "stop"
                 }
@@ -256,6 +227,8 @@ def chat_completions():
                 "total_tokens": 100 + len(recognized_text)
             }
         }
+        
+        print(f"[DEBUG] 返回response - content长度: {len(response['choices'][0]['message']['content'])}")
         
         return jsonify(response)
         

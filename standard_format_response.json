@@ -1,0 +1,21 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "【OCR识别结果】\n共识别到 67 条文本\n\n1. a1U{ (置信度: 0.35)\n2. un. (置信度: 0.63)\n3. 再令一实对称矩阵为C(n阶) (置信度: 0.95)\n4. 令一实对称矩阵(n阶)为A。 (置信度: 0.90)\n5. $A{}$ (置信度: 0.58)\n6. G{1}C_{2}++C{n (置信度: 0.50)\n7. CinAm (置信度: 0.53)\n8. C = (置信度: 0.82)\n9. 另一实对称矩阵(n阶)为B= (置信度: 0.88)\n10. $b1b_{2}--9_n (置信度: 0.56)\n11. $P_{2D22 (置信度: 0.60)\n12. Cin (置信度: 0.99)\n13. bnn (置信度: 0.50)\n14. an+bna2+bi2 -- dntbun (置信度: 0.65)\n15. bin (置信度: 0.75)\n16. ② (置信度: 0.58)\n17. (A+B)+C (置信度: 0.83)\n18. ①A+B= (置信度: 0.97)\n19. a12+b12a₂2+b22 (置信度: 0.70)\n20. , (置信度: 0.35)\n21. 1 (置信度: 0.42)\n22. ) (置信度: 0.62)\n23. an+b₂+Ca₂+b₂+C2An+n+C (置信度: 0.70)\n24. aintbin_ann+bm (置信度: 0.65)\n25. 二 (置信度: 0.98)\n26. a{12+b₂+C2 ac₂+b₂+Cz2 (置信度: 0.65)\n27. ah+b₁Gn₂+b12…ain+bin (置信度: 0.61)\n28. 。 (置信度: 0.14)\n29. B+A= (置信度: 0.97)\n30. $O₂+b12a2+b22 (置信度: 0.74)\n31. antbmtCin ___ ann+bmt (置信度: 0.64)\n32. an'tbin-anntbm (置信度: 0.64)\n33. =A+(B+C). (置信度: 0.83)\n34. A+13=B+A (置信度: 0.98)\n35. an az-_n (置信度: 0.63)\n36. ③令D=(°…） (置信度: 0.67)\n37. 则D+A= (置信度: 0.94)\n38. =A则D=0 (置信度: 0.93)\n39. ain (置信度: 0.84)\n40. (-a{2-a22-_ (置信度: 0.47)\n41. -a_1-a2---_n$ (置信度: 0.68)\n42. ④令B= (置信度: 0.76)\n43. 则A+B=D (置信度: 0.86)\n44. -a_n$ (置信度: 0.55)\n45. 取数域P上一数水，与A (置信度: 0.83)\n46. kan (置信度: 0.79)\n47. Kla_{…k_n (置信度: 0.44)\n48. ana{2}an (置信度: 0.44)\n49. ②K(A)= (置信度: 0.68)\n50. KLA2 (置信度: 0.63)\n51. K_22}$ (置信度: 0.48)\n52. 0 (置信度: 0.17)\n53. 1.A= (置信度: 0.91)\n54. G1222$ (置信度: 0.56)\n55. =A (置信度: 0.96)\n56. ① (置信度: 0.82)\n57. KiDIn (置信度: 0.59)\n58. Kamm (置信度: 0.41)\n59. (kL)A= (置信度: 0.85)\n60. klan, klan…-klan (置信度: 0.59)\n61. 3 (置信度: 0.46)\n62. ktD)A=kA+LA (置信度: 0.79)\n63. KLa2 KLG22 (置信度: 0.58)\n64. KL'Oun (置信度: 0.55)\n65. K(A+B)=kA+kB (置信度: 0.84)\n66. ∴k((A)=k()A (置信度: 0.71)\n67. ，构成实数域加上的线性穴间 (置信度: 0.89)\n\n==================================================\n识别完成！共 67 条结果\n\n【纯文本内容】\na1U{\nun.\n再令一实对称矩阵为C(n阶)\n令一实对称矩阵(n阶)为A。\n$A{}$\nG{1}C_{2}++C{n\nCinAm\nC =\n另一实对称矩阵(n阶)为B=\n$b1b_{2}--9_n\n$P_{2D22\nCin\nbnn\nan+bna2+bi2 -- dntbun\nbin\n②\n(A+B)+C\n①A+B=\na12+b12a₂2+b22\n,\n1\n)\nan+b₂+Ca₂+b₂+C2An+n+C\naintbin_ann+bm\n二\na{12+b₂+C2 ac₂+b₂+Cz2\nah+b₁Gn₂+b12…ain+bin\n。\nB+A=\n$O₂+b12a2+b22\nantbmtCin ___ ann+bmt\nan'tbin-anntbm\n=A+(B+C).\nA+13=B+A\nan az-_n\n③令D=(°…）\n则D+A=\n=A则D=0\nain\n(-a{2-a22-_\n-a_1-a2---_n$\n④令B=\n则A+B=D\n-a_n$\n取数域P上一数水，与A\nkan\nKla_{…k_n\nana{2}an\n②K(A)=\nKLA2\nK_22}$\n0\n1.A=\nG1222$\n=A\n①\nKiDIn\nKamm\n(kL)A=\nklan, klan…-klan\n3\nktD)A=kA+LA\nKLa2 KLG22\nKL'Oun\nK(A+B)=kA+kB\n∴k((A)=k()A\n，构成实数域加上的线性穴间",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1762101080,
+  "id": "chatcmpl-4f037997",
+  "model": "paddleocr-v5",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 2352,
+    "prompt_tokens": 100,
+    "total_tokens": 2452
+  }
+}

@@ -12,7 +12,7 @@ import threading
 INPUT_PDF_PATH = "input.pdf"
 OUTPUT_TEXT_PATH = "output_ocr_text.txt"  # 输出文本文件
 OUTPUT_PDF_PATH = "output_searchable.pdf"  # 可选：同时输出PDF
-DPI = 400  # 推荐200，300会更清晰但慢很多
+DPI = 200  # 推荐200，300会更清晰但慢很多
 MAX_WORKERS = 4  # 线程数，根据CPU核心数调整
 SAVE_TEXT_ONLY = True  # True=只保存文本, False=同时保存文本和PDF
 
